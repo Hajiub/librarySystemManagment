@@ -1,87 +1,202 @@
 #include <stdio.h>
-#include "library.h"
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
+#include "../include/library.h"
 
 
-void DisplayMenu(void)
+#define MAXLINE 100
+#define FILE_PATH "./data/data.txt"
+Lib lib;
+
+char cmd[MAXLINE];
+char *tokens[MAXLINE];
+enum Commands { HELP, EXIT, LIST, SEARCH, CREATE, DELETE};
+
+char *commands[] = {"help", "exit", "list", "search", "create", "delete"};
+
+void tokenize(char **tokensArray, char *buffer)
 {
-	printf("=================================== Welcome To Abraham's Library ===================================\n");
-	printf("1. Display all books\n2. Add A Book\n3. Delete A Book\n4. Update A book\n5. Quit\n");
+    int tk = 0;
+    char *token;
+    char *delem = " ";
+    token = strtok(buffer, delem);
+    while (token != NULL && tk < MAXLINE) {
+        tokensArray[tk++] = token;
+        token = strtok(NULL, delem);
+    }
+    tokensArray[tk] = NULL;
 }
 
-void getitle(char *line, int lim)
-{	
-	int i, c;
-	for (i = 0; i < lim && (c = getchar()) != EOF && c != '\n'; i++)
-		line[i] = c;
-	line[i]	 = '\0';
-	
+void displayHelp(char **tokensArray)
+{
+    if (tokensArray[1] != NULL) {
+        if (strcmp(tokensArray[1], "exit") == 0) {
+            printf("exit - Terminate the program\n");
+        } else if (strcmp(tokensArray[1], "list") == 0) {
+            printf("list - Display a list of available items\n");
+        } else if (strcmp(tokensArray[1], "search") == 0) {
+            printf("search 'ISBN' - Search for an item by ISBN\n");
+        } else if (strcmp(tokensArray[1], "create") == 0) {
+            printf("create - Create a new item with specified author, title, and ISBN\n");
+        } else if (strcmp(tokensArray[1], "delete") == 0) {
+            printf("delete 'ISBN' - Delete an item by ISBN\n");
+        } else {
+            printf("Unknown command. Type `help` for a list of available commands.\n");
+        }
+    } else {
+        printf("Available commands:\n");
+        printf("exit - Terminate the program\n");
+        printf("list - Display a list of available items\n");
+        printf("search 'ISBN' - Search for an item by ISBN\n");
+        printf("create - Create a new item with specified author, title, and ISBN\n");
+        printf("delete 'ISBN' - Delete an item by ISBN\n");
+    }
+}
+char *removeTrailingSpaces(char *line)
+{
+    int length = strlen(line);
+    
+    for (int i = length - 1; i >= 0; i--) 
+    {
+        if (line[i] == ' ' || line[i] == '\t' || line[i] == '\n') 
+        {
+            line[i] = '\0';
+        } else {
+            break;
+        }
+    }
+    char *pt = line;
+    while (isspace(*pt++));
+    return --pt;
 }
 
-int getUserChoice()
+void create()
 {
+	char title[MAXLINE];
+	char author[MAXLEN];
+	char isbnStr[MAXLEN];
 
-    int x;
-    int res;
+	printf("Title: ");
+	fgets(title, MAXLINE, stdin);
+        char *trimmedtitle = removeTrailingSpaces(title);
 
-    do {
-        printf("Please select a choice between 1 to 5: ");
-        res = scanf(" %i", &x);
-        while (getchar() != '\n');
-    } while (res != 1 || x > 5 || x < 1);
+	printf("Author: ");
+	fgets(author, MAXLEN, stdin);
+	char *trimmedauthor = removeTrailingSpaces(author);
 
-    return x;
-}
-
-void run(void)
-{
-	char line[MAX_TITLE_LEN];
-	int choice;
-	Library lib;
-	initLibrary(&lib);
-	long int isbn;
-	while (1)
+	printf("ISBN: ");
+	fgets(isbnStr, MAXLEN, stdin);
+	char *trimmedisbn = removeTrailingSpaces(isbnStr);
+	if (*trimmedisbn && *trimmedtitle && *trimmedauthor)
 	{
-		DisplayMenu();
-		choice = getUserChoice();
-		if (choice == 5)
-		{
-			printf("Thanks for using Abraham's library\n");
-			break;
-		}
-		switch (choice)
-		{
-			case 1:
-				displayAllbooks(&lib);
-				break;
-			case 2:
-				printf("Add a book\n");
-				printf("Title: ");
-				getitle(line, MAX_TITLE_LEN);
-				printf("ISBN: ");
-				scanf("%ld", &isbn);
-				addBook(&lib, line, isbn);
-				break;
-			case 3:
-				printf("ISBN: ");
-				scanf("%ld", &isbn);
-				deleteBook(&lib, isbn);
-				break;
-			case 4:
-				printf("Update a book\n");
-				printf("New title: ");
-				getitle(line, MAX_TITLE_LEN);
-				printf("ISBN: ");
-				scanf("%ld", &isbn);
-				updateBook(&lib, isbn, line);
-				break;
-			default:
-				printf("Invalid choice\n");
-				break;
-		}
+		addBook(&lib, trimmedtitle, trimmedauthor, strtol(trimmedisbn, NULL, 10));
+		printf("Your book has been added!\n");
+	}
+	else
+	{
+	
+		fprintf(stderr,"Error: Cannot add a book with an empty field!\n");
+		return;
 	}
 }
-
-int main(void)
+void search()
 {
-	run();
+	if (tokens[1])
+	{
+		long int isbn = strtol(tokens[1], NULL, 10);
+       	        DisplayBookByIsbn(lib, isbn);
+	}
+	else
+	{
+		char *ser[] = {"help", "search"};
+		displayHelp(ser);
+	}
+}
+void delete(void)
+{
+	if (tokens[1])
+	{
+		long int isbn = strtol(tokens[1], NULL, 10);
+		DeleteBook(&lib, isbn);
+		return;
+	}
+	char *del[] = {"help", "delete"};
+	displayHelp(del);
+}
+void processCommand(char *command) 
+{
+    enum Commands cmdIndex;
+    int found = 0;
+
+    for (cmdIndex = HELP; commands[cmdIndex]; cmdIndex++) 
+    {
+        if (strcmp(command, commands[cmdIndex]) == 0)
+       	{
+            found = 1;
+            break;
+        }
+    }
+
+    if (found) 
+    {
+        if (cmdIndex == EXIT)
+	{
+	    SaveToFile(FILE_PATH, lib);
+	    freeLibrary(&lib);
+            exit(0);
+	}
+        switch (cmdIndex) 
+        {
+            case HELP:
+                displayHelp(tokens);
+                break;
+            case LIST:
+                DisplayBooks(lib);
+                break;
+            case SEARCH:
+		search();
+		break;
+            case CREATE:
+                create();
+                break;
+            case DELETE:
+                delete();
+                break;
+            default:
+                printf("If some how you got this line! it means that earth is flat!\n");
+                break;
+        }
+    }
+    else
+    {
+        printf("%s: command not found\n", command);
+        return;
+    }
+
+}
+
+int getLine(char *buffer, int lim) {
+    int i, c;
+    printf("Lib> ");
+    for (i = 0; i < lim && (c = getchar()) != EOF && c != '\n'; i++)
+        buffer[i] = c;
+    buffer[i] = '\0';
+    return i;
+}
+
+int main(void) 
+{
+    initLibrary(&lib);
+    LoadFromFile(FILE_PATH, &lib);
+    int len = 0;
+    while (1) 
+    {
+        len = getLine(cmd, MAXLINE);
+	if (len <= 0)
+		continue;
+        tokenize(tokens, cmd);
+        processCommand(tokens[0]);
+    }
+    return 0;
 }

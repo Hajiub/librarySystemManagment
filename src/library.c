@@ -1,78 +1,149 @@
 #include <stdio.h>
 #include <string.h>
-#include "library.h"
+#include <stdlib.h>
+#include "../include/book.h"
+#include "../include/library.h"
 
-static sortBooks(Library *lib);
-static int searchBook(const Library *lib, const long int isbn)
+
+static Book *SearchBook(Lib lib, long int isbn)
 {
-	for (int i = 0; i < lib->b_count; i++)
-		if (lib->books[i].isbn == isbn)
-			return i;
-	return -1;
-} 
-void displayAllbooks(const Library *lib)
-{
-	int i;
-	if (lib->b_count > 0) 
+	Book *b = lib.head;
+	while (b)
 	{
-		printf("Index  Title    ISBN\n");
-		for (i = 0; i < lib->b_count; i++)
-			printf("%i   %s   %ld\n", i, lib->books[i].title, lib->books[i].isbn);
-	
+		if (b->isbn == isbn)
+			return b;
+		b = b->next;
 	}
-	else
-		printf("The library is Empty please add books!\n");
+	return NULL;
+
 }
-void initLibrary(Library *lib)
+void initLibrary(Lib *lib)
 {
-	lib->b_count = 0;
-	return;
-}
-void addBook(Library *lib, const char *title, long int isbn)
-{
-	lib->books[lib->b_count].isbn = isbn;
-	strcpy(lib->books[lib->b_count].title, title);
-	lib->b_count++;
-	return;
+	lib->head = NULL;
 }
 
-void deleteBook(Library *lib, long int isbn)
+void addBook(Lib *lib, const char *title, const char *author, const long int isbn)
 {
-       /* Steps:
-	1. Check if isbn does exit
-        2. Get the index of the book 
-	3. If index is in the end decrement the books count
-	4. Else  shift the books 
-	*/
-	
-	int index = -1; 
-	for (int i = 0; i < lib->b_count; i++)	
-		if (lib->books[i].isbn == isbn)
-		{
-			index = i;		
-		}
-	if (index >= 0)
+    // Todo: add book at the end
+    Book *new_book = CreateBook(title, author, isbn);
+    new_book->next = lib->head;
+    lib->head = new_book;
+}
+
+void DisplayBooks(Lib lib) 
+{
+    Book *currentBook = lib.head;
+
+    if (!currentBook) {
+        printf("Library is empty. Please add books!\n");
+        return;
+    }
+
+    printf("%-20s%-15s%-30s\n", "Author", "ISBN", "Title");
+    while (currentBook != NULL) {
+        currentBook->printInfo(currentBook);
+        currentBook = currentBook->next;
+    }
+}
+
+void DisplayBookByIsbn(Lib lib, long int isbn)
+{
+	Book *book = SearchBook(lib, isbn);
+	if (book == NULL)
 	{
-		if (index == lib->b_count - 1)			
-			lib->b_count--;
-		else
-		{
-			for (int j = index; j < lib->b_count - 1 ; j++)
-				lib->books[j] = lib->books[j + 1];
-			lib->b_count--;
-		}
-	}
-	else
-		printf("Error: book doesn't exist!\n");
-}
-
-void updateBook(Library *lib, long int isbn, const char* title)
-{
-	int index = searchBook(lib, isbn);
-	if (index >= 0)
-		strcpy(lib->books[index].title, title);
-		printf("Book has been updated!\n");
+		fprintf(stderr,"Book doesn't exist!\n");
 		return;
-	printf("Book with Isbn %ld isn't found\n", isbn);
+	}
+	book->printInfo(book);
+
+}
+void DeleteBook(Lib *lib, long int isbn)
+{
+    Book *prev = NULL;
+    Book *current = lib->head;
+
+    if (current != NULL && current->isbn == isbn)
+    {
+        lib->head = current->next;
+        freeBook(current);
+        return;
+    }
+
+    while (current != NULL && current->isbn != isbn)
+    {
+        prev = current;
+        current = current->next;
+    }
+
+    if (current == NULL)
+    {
+        printf("Error: Book with ISBN %ld not found.\n", isbn);
+        return;
+    }
+
+    prev->next = current->next;
+    freeBook(current);
+}
+
+void freeLibrary(Lib *lib)
+{
+	Book *n, *temp;
+	n = lib->head;
+	while (n != NULL)
+	{
+		temp = n->next;
+		freeBook(n);
+		n = temp;
+	}
+}
+static FILE *openFile(const char *file_name, char *mode)
+{
+	FILE *f = fopen(file_name, mode);
+	if (f == NULL)
+	{
+		fprintf(stderr, "Couldn't open %s", file_name);
+		return NULL;
+	}	
+	return f;
+}
+void SaveToFile(char *file_name, Lib lib)
+{
+	FILE *file = openFile(file_name, "w");
+	Book *current = lib.head;
+	while (current != NULL)
+	{
+		fprintf(file,"%s,%s,%ld\n", current->title, current->author, current->isbn);
+		current = current->next;
+	}
+	fclose(file);
 	return;
 }
+void LoadFromFile(char *file_name, Lib *lib)
+{
+    FILE *file = openFile(file_name, "r");
+    char line[MAXLEN];
+    char *dele = ",";
+    char *tokens[3];
+    char *token;
+    int i;
+
+    while (fgets(line, MAXLEN, file))
+    {
+        i = 0;
+        token = strtok(line, dele);
+        while (token != NULL)
+        {
+            tokens[i++] = token;
+            token = strtok(NULL, dele);
+        }
+
+        // Check if the line has at least three tokens before processing
+        if (i >= 3)
+        {
+            addBook(lib, tokens[0], tokens[1], atoi(tokens[2]));
+        }
+    }
+
+    fclose(file);
+}
+
